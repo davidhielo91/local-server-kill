@@ -1,0 +1,332 @@
+:root {
+  --graphite: #1b1f27;
+  --graphite-raised: #232834;
+  --line: #2e3442;
+  --text: #e6e8ec;
+  --muted: #8b93a3;
+  --amber: #f2b33d;
+  --red: #f06a6a;
+  color-scheme: dark;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+}
+
+html,
+body {
+  height: 100%;
+}
+
+body {
+  display: flex;
+  flex-direction: column;
+  background: var(--graphite);
+  color: var(--text);
+  font: 13px/1.4 "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif;
+  user-select: none;
+  overflow: hidden;
+}
+
+button {
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+}
+
+button:focus-visible {
+  outline: 2px solid var(--amber);
+  outline-offset: 2px;
+}
+
+.top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 12px 10px 16px;
+}
+
+h1 {
+  font: 600 15px/1.2 "Segoe UI Variable Display", "Segoe UI", sans-serif;
+}
+
+.icon-btn {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--muted);
+}
+
+.icon-btn:hover {
+  background: var(--graphite-raised);
+  color: var(--text);
+}
+
+.icon-btn svg {
+  width: 15px;
+  height: 15px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.icon-btn.spinning svg {
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+#list {
+  flex: 1;
+  overflow-y: auto;
+  border-top: 1px solid var(--line);
+}
+
+#list::-webkit-scrollbar {
+  width: 8px;
+}
+
+#list::-webkit-scrollbar-thumb {
+  background: var(--line);
+  border-radius: 4px;
+}
+
+/* Cada servidor: el puerto a la izquierda, como la etiqueta de una toma en un panel de conexiones. */
+.row {
+  display: grid;
+  grid-template-columns: 84px 1fr auto;
+  align-items: start;
+  gap: 4px 10px;
+  padding: 12px 12px 12px 8px;
+  border-bottom: 1px solid var(--line);
+}
+
+.row.leaving {
+  opacity: 0.4;
+  transition: opacity 0.2s;
+}
+
+.port {
+  padding: 0 0 0 8px;
+  border: 0;
+  background: transparent;
+  color: var(--amber);
+  font-family: Bahnschrift, "Segoe UI", sans-serif;
+  font-stretch: condensed;
+  font-weight: 600;
+  font-size: 30px;
+  line-height: 1;
+  letter-spacing: 0.01em;
+  font-variant-numeric: tabular-nums;
+  text-align: left;
+  border-radius: 4px;
+}
+
+.port.no-port {
+  color: var(--muted);
+  cursor: default;
+}
+
+.port:hover:not(:disabled) {
+  text-decoration: underline;
+  text-decoration-thickness: 2px;
+  text-underline-offset: 4px;
+}
+
+.info {
+  min-width: 0;
+}
+
+.framework {
+  font-weight: 600;
+}
+
+.project {
+  color: var(--text);
+  opacity: 0.85;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.meta {
+  display: flex;
+  flex-wrap: wrap;
+  column-gap: 10px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.meta .extra-port {
+  color: var(--amber);
+  font-family: Bahnschrift, "Segoe UI", sans-serif;
+}
+
+.meta .exposed {
+  color: var(--text);
+}
+
+.row-error,
+.error {
+  color: var(--red);
+  font-size: 12px;
+}
+
+.error {
+  padding: 8px 16px;
+  border-top: 1px solid var(--line);
+}
+
+.row-buttons {
+  display: flex;
+  gap: 4px;
+}
+
+.more {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--muted);
+}
+
+.more svg {
+  width: 14px;
+  height: 14px;
+  fill: currentColor;
+}
+
+.more:hover,
+.more[aria-expanded="true"] {
+  border-color: var(--muted);
+  color: var(--text);
+}
+
+/* Barra de acciones bajo la fila: ocupa todo el ancho, alineada con el número de puerto. */
+.actions {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 6px;
+  padding-left: 8px;
+}
+
+.actions[hidden] {
+  display: none;
+}
+
+.actions button {
+  padding: 4px 10px;
+  border: 0;
+  border-radius: 6px;
+  background: var(--graphite-raised);
+  color: var(--text);
+  font-size: 12px;
+}
+
+.actions button:hover:not(:disabled) {
+  background: var(--line);
+}
+
+.actions button:disabled {
+  cursor: default;
+  color: var(--muted);
+}
+
+.actions button.done {
+  color: var(--amber);
+}
+
+.meta .forgotten {
+  color: var(--red);
+}
+
+.stop {
+  padding: 4px 10px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text);
+  font-size: 12px;
+}
+
+.stop:hover:not(:disabled) {
+  border-color: var(--red);
+  color: var(--red);
+}
+
+.stop:disabled {
+  cursor: default;
+  color: var(--muted);
+}
+
+.empty {
+  padding: 48px 28px;
+  color: var(--muted);
+}
+
+.empty strong {
+  display: block;
+  margin-bottom: 6px;
+  color: var(--text);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.empty code {
+  color: var(--amber);
+  font-family: Bahnschrift, "Segoe UI", sans-serif;
+}
+
+.bottom {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 52px;
+  padding: 10px 12px 10px 16px;
+  border-top: 1px solid var(--line);
+  color: var(--muted);
+}
+
+.kill-all {
+  padding: 6px 12px;
+  border: 1px solid var(--red);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--red);
+}
+
+.kill-all:hover:not(:disabled),
+.kill-all.confirm {
+  background: var(--red);
+  color: var(--graphite);
+}
+
+.kill-all:disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .icon-btn.spinning svg {
+    animation: none;
+  }
+
+  .row.leaving {
+    transition: none;
+  }
+}

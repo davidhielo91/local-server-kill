@@ -1,0 +1,25 @@
+# Dependencias y builds
+node_modules/
+dist/
+release/
+
+# Logs
+*.log
+npm-debug.log*
+
+# Variables de entorno
+.env
+.env.*
+
+# Archivos del sistema
+Thumbs.db
+Desktop.ini
+.DS_Store
+
+# Editores
+.vscode/
+.idea/
+
+# Capturas de prueba (modo LSK_SCREENSHOT)
+*.png.txt
+/capturas/

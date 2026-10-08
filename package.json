@@ -1,0 +1,58 @@
+{
+  "name": "local-server-kill",
+  "version": "1.2.1",
+  "description": "Icono en la bandeja de Windows para ver y apagar servidores de desarrollo locales",
+  "main": "dist/main/main.js",
+  "scripts": {
+    "build": "tsc -p tsconfig.json && tsc -p tsconfig.renderer.json && node scripts/copy-static.mjs",
+    "dev": "npm run build && electron .",
+    "icons": "node scripts/make-icons.mjs",
+    "dist": "npm run build && electron-builder --win"
+  },
+  "author": "David Hielo",
+  "license": "MIT",
+  "devDependencies": {
+    "@types/node": "^26.6.4",
+    "electron": "^44.7.0",
+    "electron-builder": "^26.15.3",
+    "typescript": "^7.0.2"
+  },
+  "productName": "Local Server Kill",
+  "build": {
+    "appId": "com.davidhielo.localserverkill",
+    "productName": "Local Server Kill",
+    "directories": {
+      "output": "release/${version}"
+    },
+    "files": [
+      "dist/**",
+      "assets/**",
+      "package.json"
+    ],
+    "win": {
+      "target": [
+        "nsis",
+        "portable"
+      ],
+      "icon": "assets/icon.png"
+    },
+    "nsis": {
+      "oneClick": true,
+      "perMachine": false
+    },
+    "portable": {
+      "artifactName": "${productName}-${version}-portable.exe"
+    }
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "keywords": [
+    "windows",
+    "tray",
+    "electron",
+    "dev-server",
+    "ports",
+    "docker"
+  ]
+}
