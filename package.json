@@ -54,5 +54,13 @@
     "dev-server",
     "ports",
     "docker"
-  ]
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/davidhielo91/local-server-kill.git"
+  },
+  "homepage": "https://github.com/davidhielo91/local-server-kill",
+  "bugs": {
+    "url": "https://github.com/davidhielo91/local-server-kill/issues"
+  }
 }
