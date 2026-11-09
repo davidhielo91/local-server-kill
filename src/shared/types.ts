@@ -8,8 +8,13 @@ export interface DevServer {
   project: string | null;
   projectPath: string | null;
   commandLine: string;
-  /** Epoch ms en que arrancó el proceso, o null si no se conoce. */
+  /** Epoch ms en que arrancó el proceso, o null si no se conoce. Junto con pid y commandLine identifica al proceso. */
   startedAt: number | null;
+  /**
+   * Desde cuándo está prendido el servidor (misma carpeta y puerto), aunque nodemon, node --watch
+   * o el autoreload de Django hayan relanzado su proceso. Es lo que se muestra y lo que cuenta para "olvidado".
+   */
+  runningSince: number | null;
   /** Escucha en 0.0.0.0 / :: (visible desde otros equipos de la red). */
   exposed: boolean;
   /** Fila de Docker: un grupo de contenedores (o todo Docker si no se pudo preguntar a Docker). */
@@ -37,14 +42,18 @@ export interface ScanResult {
 
 export type KillResult = ActionResult;
 
+/** Con qué fila del panel se quiere actuar: el PID solo no basta, Windows lo recicla. */
+export type ServerRef = Pick<DevServer, 'pid' | 'startedAt'>;
+
 export interface Api {
   list(): Promise<ScanResult>;
-  kill(pid: number): Promise<KillResult>;
-  killAll(): Promise<KillResult>;
+  kill(server: ServerRef): Promise<KillResult>;
+  /** Apaga los servidores que el panel mostró al confirmar (no los que hayan aparecido después). */
+  killAll(servers: ServerRef[]): Promise<KillResult>;
   open(port: number): Promise<void>;
   copyUrl(port: number): Promise<ActionResult>;
-  openFolder(pid: number): Promise<ActionResult>;
-  openEditor(pid: number): Promise<ActionResult>;
-  restart(pid: number): Promise<ActionResult>;
+  openFolder(server: ServerRef): Promise<ActionResult>;
+  openEditor(server: ServerRef): Promise<ActionResult>;
+  restart(server: ServerRef): Promise<ActionResult>;
   onUpdate(cb: (result: ScanResult) => void): void;
 }

@@ -1,13 +1,14 @@
 {
   "name": "local-server-kill",
-  "version": "1.2.1",
+  "version": "1.3.0",
   "description": "Icono en la bandeja de Windows para ver y apagar servidores de desarrollo locales",
   "main": "dist/main/main.js",
   "scripts": {
     "build": "tsc -p tsconfig.json && tsc -p tsconfig.renderer.json && node scripts/copy-static.mjs",
     "dev": "npm run build && electron .",
     "icons": "node scripts/make-icons.mjs",
-    "dist": "npm run build && electron-builder --win"
+    "dist": "npm run build && electron-builder --win",
+    "test": "npm run build && node --test test/"
   },
   "author": "David Hielo",
   "license": "MIT",

@@ -59,6 +59,7 @@ Requiere Node.js 22 o superior.
 ```bash
 npm install
 npm run dev     # compila y abre la app
+npm test        # compila y corre las pruebas (a qué proceso apunta "Detener", avisos)
 npm run dist    # genera el instalador y el .exe portable en release/<versión>/
 npm run icons   # regenera los iconos de assets/
 ```
