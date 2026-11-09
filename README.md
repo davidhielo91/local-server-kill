@@ -4,11 +4,13 @@ Icono en la bandeja de Windows que muestra qué servidores de desarrollo tienes 
 
 Pensado para cuando se te quedan servidores prendidos sin darte cuenta y no sabes cuál es cuál ni cómo apagarlos.
 
-<!-- Captura del panel: agrega aquí una imagen, por ejemplo docs/panel.png -->
+<p align="center">
+  <img src="docs/panel.png" width="360" alt="Panel de Local Server Kill con cuatro servidores: Next.js en el puerto 3000, Vite en el 5173, Django en el 8000 con su tiempo en rojo por llevar más de 3 horas prendido, y un proyecto de Docker con 11 contenedores en el 54321. Cada fila tiene un botón Detener y un menú con Copiar URL, VS Code, Carpeta y Reiniciar.">
+</p>
 
 ## Instalación
 
-1. Descarga desde **Releases** el instalador (`Local Server Kill Setup x.y.z.exe`) o la versión portable (`Local Server Kill-x.y.z-portable.exe`).
+1. Descarga desde [**Releases**](https://github.com/davidhielo91/local-server-kill/releases/latest) el instalador (`Local.Server.Kill.Setup.x.y.z.exe`) o la versión portable (`Local.Server.Kill-x.y.z-portable.exe`).
 2. Ábrelo. La primera vez Windows puede mostrar **"Windows protegió tu PC"** porque la app no tiene firma digital: da clic en **Más información → Ejecutar de todas formas**.
 3. Aparece un círculo junto al reloj. Si no lo ves, búscalo en la flechita **^** de la barra de tareas y arrástralo a la barra.
 
