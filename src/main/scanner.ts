@@ -99,12 +99,17 @@ export async function getCwds(procs: ProcInfo[]): Promise<Map<number, string | n
   return new Map(procs.map((p) => [p.pid, cwdCache.get(key(p)) ?? null]));
 }
 
+/** Si PowerShell o netstat se cuelgan (p. ej. WMI dañado), se cortan aquí para que la búsqueda no quede esperando para siempre. */
+const RUN_TIMEOUT = 20_000;
+
 function run(file: string, args: string[], env?: Record<string, string>): Promise<string> {
   return new Promise((resolve, reject) => {
-    const options = { windowsHide: true, maxBuffer: 64 * 1024 * 1024, env: env ? { ...process.env, ...env } : process.env };
+    const options = { windowsHide: true, timeout: RUN_TIMEOUT, maxBuffer: 64 * 1024 * 1024, env: env ? { ...process.env, ...env } : process.env };
     execFile(file, args, options, (err, stdout) => {
-      if (err) reject(err);
-      else resolve(stdout);
+      if (!err) return resolve(stdout);
+      // El mensaje original trae el comando completo (con kilobytes de base64): al usuario solo le sirve esto.
+      const name = path.basename(file, '.exe');
+      reject(new Error(err.killed ? `${name} tardó demasiado en responder.` : `${name} falló (código ${err.code ?? '?'}).`));
     });
   });
 }
@@ -167,17 +172,26 @@ function projectFromPath(p: string, isDir = false): string | null {
   return !isDir && path.extname(norm) ? path.dirname(norm) : norm;
 }
 
+/**
+ * Carpeta del proyecto que aparece en la línea de comandos de este proceso (sin mirar a sus padres).
+ */
+function projectFromCommand(proc: ProcInfo): string | null {
+  const tokens = tokenize(proc.cmd);
+  for (const t of [...tokens.slice(1), ...tokens.slice(0, 1)]) {
+    // Opciones tipo --root=C:\algo
+    const value = t.includes('=') ? t.slice(t.indexOf('=') + 1) : t;
+    const found = projectFromPath(value);
+    if (found) return found;
+  }
+  return null;
+}
+
 /** Busca la carpeta del proyecto en la línea de comandos del proceso y, si no aparece, en la de sus padres. */
 function findProject(proc: ProcInfo, procs: Map<number, ProcInfo>): string | null {
   let current: ProcInfo | undefined = proc;
   for (let depth = 0; current && depth < 4; depth++) {
-    const tokens = tokenize(current.cmd);
-    for (const t of [...tokens.slice(1), ...tokens.slice(0, 1)]) {
-      // Opciones tipo --root=C:\algo
-      const value = t.includes('=') ? t.slice(t.indexOf('=') + 1) : t;
-      const found = projectFromPath(value);
-      if (found) return found;
-    }
+    const found = projectFromCommand(current);
+    if (found) return found;
     current = procs.get(current.ppid);
   }
   return null;
@@ -292,7 +306,7 @@ export async function scan(): Promise<{ result: ScanResult; procs: Map<number, P
       if (!docker) {
         docker = {
           pid, ports: [], processName: proc.name, framework: 'Docker', project: null, projectPath: null,
-          commandLine: proc.cmd, startedAt: proc.started, exposed: false, docker: true,
+          commandLine: proc.cmd, startedAt: proc.started, runningSince: proc.started, exposed: false, docker: true,
           memoryBytes: 0, cpuPercent: null, forgotten: false,
         };
         servers.push(docker);
@@ -317,6 +331,7 @@ export async function scan(): Promise<{ result: ScanResult; procs: Map<number, P
       projectPath,
       commandLine: proc.cmd,
       startedAt: proc.started,
+      runningSince: proc.started,
       exposed,
       docker: false,
     };

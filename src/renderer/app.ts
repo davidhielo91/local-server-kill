@@ -1,4 +1,4 @@
-import type { Api, DevServer, ScanResult } from '../shared/types';
+import type { ActionResult, Api, DevServer, ScanResult, ServerRef } from '../shared/types';
 
 declare global {
   interface Window {
@@ -18,6 +18,11 @@ let current: ScanResult = { servers: [], scannedAt: 0 };
 const stopping = new Set<number>();
 const rowErrors = new Map<number, string>();
 let confirmTimer: number | undefined;
+/** Servidores que mostraba "Sí, apagar los N": solo esos se apagan. */
+let confirmed: ServerRef[] = [];
+
+/** Lo que se manda al proceso principal para decir de qué fila se trata. */
+const ref = (s: DevServer): ServerRef => ({ pid: s.pid, startedAt: s.startedAt });
 /** Fila con la barra de acciones abierta (solo una a la vez). */
 let openActions: number | null = null;
 /** Acción en curso por servidor, p. ej. reiniciar. */
@@ -33,9 +38,9 @@ function formatCpu(percent: number): string {
   return percent > 0 && percent < 1 ? '<1 % CPU' : `${Math.round(percent)} % CPU`;
 }
 
-function uptime(startedAt: number | null): string {
-  if (!startedAt) return '';
-  const min = Math.max(0, Math.floor((Date.now() - startedAt) / 60_000));
+function uptime(since: number | null): string {
+  if (!since) return '';
+  const min = Math.max(0, Math.floor((Date.now() - since) / 60_000));
   if (min < 1) return 'recién iniciado';
   if (min < 60) return `${min} min`;
   const h = Math.floor(min / 60);
@@ -79,7 +84,7 @@ function renderRow(server: DevServer): HTMLElement {
 
   const meta = row.querySelector('.meta') as HTMLElement;
   const parts: HTMLElement[] = [];
-  const up = uptime(server.startedAt);
+  const up = uptime(server.runningSince);
   if (up) {
     const upEl = span(up, server.forgotten ? 'forgotten' : undefined);
     if (server.forgotten) upEl.title = 'Lleva mucho tiempo prendido. ¿Lo sigues usando?';
@@ -124,7 +129,7 @@ function renderRow(server: DevServer): HTMLElement {
       stop.title = `Detiene ${n === 1 ? 'el contenedor' : `los ${n} contenedores`} de ${server.project}. Docker sigue funcionando.`;
     }
     stop.setAttribute('aria-label', `Detener ${server.project ?? server.framework}${mainPort === undefined ? '' : ` en el puerto ${mainPort}`}`);
-    stop.addEventListener('click', () => stopServer(server.pid));
+    stop.addEventListener('click', () => stopServer(ref(server)));
   }
 
   renderActions(row, server, mainPort);
@@ -167,8 +172,8 @@ function renderActions(row: HTMLElement, server: DevServer, mainPort: number | u
   editor.disabled = folder.disabled = !server.projectPath;
   if (!server.projectPath) editor.title = folder.title = 'No sé de qué carpeta es este servidor.';
 
-  editor.addEventListener('click', () => runAction(server.pid, () => api.openEditor(server.pid)));
-  folder.addEventListener('click', () => runAction(server.pid, () => api.openFolder(server.pid)));
+  editor.addEventListener('click', () => runAction(server.pid, () => api.openEditor(ref(server))));
+  folder.addEventListener('click', () => runAction(server.pid, () => api.openFolder(ref(server))));
 
   if (busy.get(server.pid) === 'restart') {
     restartBtn.textContent = 'Reiniciando…';
@@ -177,7 +182,7 @@ function renderActions(row: HTMLElement, server: DevServer, mainPort: number | u
   restartBtn.addEventListener('click', async () => {
     busy.set(server.pid, 'restart');
     render();
-    await runAction(server.pid, () => api.restart(server.pid));
+    await runAction(server.pid, () => api.restart(ref(server)));
     busy.delete(server.pid);
     if (openActions === server.pid) openActions = null;
     render();
@@ -191,9 +196,18 @@ function showRowError(pid: number, error = 'No se pudo completar la acción.') {
   render();
 }
 
-async function runAction(pid: number, action: () => Promise<{ ok: boolean; error?: string }>) {
+/** Ejecuta una acción del proceso principal. Si falla o lanza, el error queda en la fila y el botón no se traba. */
+async function call(action: () => Promise<ActionResult>): Promise<ActionResult> {
+  try {
+    return await action();
+  } catch (err) {
+    return { ok: false, error: `No se pudo completar la acción: ${(err as Error).message ?? err}` };
+  }
+}
+
+async function runAction(pid: number, action: () => Promise<ActionResult>) {
   rowErrors.delete(pid);
-  const result = await action();
+  const result = await call(action);
   if (!result.ok) showRowError(pid, result.error);
 }
 
@@ -222,11 +236,12 @@ function render() {
   errorBox.textContent = current.error ?? '';
 }
 
-async function stopServer(pid: number) {
+async function stopServer(server: ServerRef) {
+  const { pid } = server;
   stopping.add(pid);
   rowErrors.delete(pid);
   render();
-  const result = await api.kill(pid);
+  const result = await call(() => api.kill(server));
   stopping.delete(pid);
   if (!result.ok && result.error) rowErrors.set(pid, result.error);
   render();
@@ -241,19 +256,19 @@ function resetKillAll() {
 
 killAllBtn.addEventListener('click', async () => {
   if (!killAllBtn.classList.contains('confirm')) {
-    const n = current.servers.filter((s) => !s.docker).length;
+    confirmed = current.servers.filter((s) => !s.docker).map(ref);
     killAllBtn.classList.add('confirm');
-    killAllBtn.textContent = `Sí, apagar los ${n}`;
+    killAllBtn.textContent = `Sí, apagar los ${confirmed.length}`;
     confirmTimer = window.setTimeout(resetKillAll, 4000);
     return;
   }
   window.clearTimeout(confirmTimer);
   killAllBtn.disabled = true;
   killAllBtn.textContent = 'Apagando…';
-  current.servers.filter((s) => !s.docker).forEach((s) => stopping.add(s.pid));
+  confirmed.forEach((s) => stopping.add(s.pid));
   render();
-  const result = await api.killAll();
-  stopping.clear();
+  const result = await call(() => api.killAll(confirmed));
+  confirmed.forEach((s) => stopping.delete(s.pid));
   resetKillAll();
   if (!result.ok) current = { ...current, error: result.error };
   render();

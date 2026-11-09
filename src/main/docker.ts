@@ -91,6 +91,7 @@ export function groupToServer(g: DockerGroup): DevServer {
     projectPath: g.projectPath,
     commandLine: g.containers.map((c) => c.name).join('\n'),
     startedAt: g.startedAt,
+    runningSince: g.startedAt,
     exposed: g.exposed,
     docker: true,
     containers: g.containers,

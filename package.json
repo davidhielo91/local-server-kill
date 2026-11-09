@@ -7,7 +7,8 @@
     "build": "tsc -p tsconfig.json && tsc -p tsconfig.renderer.json && node scripts/copy-static.mjs",
     "dev": "npm run build && electron .",
     "icons": "node scripts/make-icons.mjs",
-    "dist": "npm run build && electron-builder --win"
+    "dist": "npm run build && electron-builder --win",
+    "test": "npm run build && node --test test/"
   },
   "author": "David Hielo",
   "license": "MIT",

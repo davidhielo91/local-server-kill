@@ -1,11 +1,9 @@
 import { Notification } from 'electron';
 import type { DevServer, ScanResult } from '../shared/types';
 import type { Settings } from './settings';
+import { ServerTracker } from './tracking';
 
-const key = (s: DevServer) => `${s.pid}:${s.startedAt}`;
-
-let known: Set<string> | null = null;
-const alertedForgotten = new Set<string>();
+const tracker = new ServerTracker();
 // Windows pierde el clic de un aviso si el objeto Notification se recolecta antes: se guardan aquí.
 const alive = new Set<Notification>();
 
@@ -29,19 +27,21 @@ function notify(title: string, body: string, onClick: () => void) {
 }
 
 /**
- * Marca los servidores olvidados y lanza los avisos de servidor nuevo / olvidado.
- * Se llama después de cada búsqueda que salió bien.
+ * Pone `runningSince` y `forgotten` a cada servidor y lanza los avisos de servidor nuevo / olvidado.
+ * Se llama después de cada búsqueda que salió bien. Docker queda fuera: suelen ser bases de datos que se dejan prendidas.
  */
 export function processScan(result: ScanResult, settings: Settings, onClick: () => void) {
   const now = Date.now();
+  // En la primera búsqueda solo se toma nota: no se avisa de lo que ya estaba corriendo al abrir la app.
+  const { started } = tracker.update(result.servers, now);
   const limitMs = settings.forgottenHours * 3_600_000;
-  const servers = result.servers.filter((s) => !s.docker);
 
-  for (const s of servers) {
-    s.forgotten = limitMs > 0 && s.startedAt !== null && now - s.startedAt > limitMs;
-    if (s.forgotten && !alertedForgotten.has(key(s))) {
-      alertedForgotten.add(key(s));
-      const hours = Math.floor((now - s.startedAt!) / 3_600_000);
+  for (const s of result.servers) {
+    if (s.docker || s.runningSince === null) continue;
+    s.forgotten = limitMs > 0 && now - s.runningSince > limitMs;
+    // Una vez por racha de encendido: el tracker lo recuerda aunque nodemon relance el proceso.
+    if (s.forgotten && tracker.claimForgottenAlert(s)) {
+      const hours = Math.floor((now - s.runningSince) / 3_600_000);
       notify(
         `${describe(s)} lleva ${hours >= 1 ? `${hours} h` : formatHours(settings.forgottenHours)} prendido`,
         `Puerto :${s.ports[0]}. Haz clic para revisarlo.`,
@@ -50,13 +50,12 @@ export function processScan(result: ScanResult, settings: Settings, onClick: () 
     }
   }
 
-  const current = new Set(servers.map(key));
-  // En la primera búsqueda solo se toma nota: no se avisa de lo que ya estaba corriendo al abrir la app.
-  if (known && settings.notifyNew) {
-    for (const s of servers) {
-      if (known.has(key(s))) continue;
-      notify(`${s.framework} arrancó en :${s.ports[0]}`, s.project ?? 'Haz clic para verlo en el panel.', onClick);
-    }
+  if (settings.notifyNew) {
+    for (const s of started) notify(`${s.framework} arrancó en :${s.ports[0]}`, s.project ?? 'Haz clic para verlo en el panel.', onClick);
   }
-  known = current;
+}
+
+/** El usuario lo apagó o reinició desde la app: su tiempo prendido (y el aviso de "olvidado") empieza de cero. */
+export function forgetServer(server: DevServer) {
+  if (!server.docker) tracker.resetClock(server);
 }
