@@ -1,8 +1,11 @@
-import { execFile } from 'node:child_process';
 import os from 'node:os';
 import path from 'node:path';
 import type { DevServer, ScanResult } from '../shared/types';
 import { groupToServer, listDockerGroups } from './docker';
+import { ListenerConfirmer, listListeners, type Listener } from './listeners';
+import { powershell } from './run';
+
+export { listListeners };
 
 export interface ProcInfo {
   pid: number;
@@ -15,12 +18,6 @@ export interface ProcInfo {
   ws: number;
   /** Tiempo de CPU acumulado, en unidades de 100 ns. */
   cpu: number;
-}
-
-interface Listener {
-  pid: number;
-  port: number;
-  address: string;
 }
 
 const DEV_PROCESSES = new Set([
@@ -86,10 +83,7 @@ export async function getCwds(procs: ProcInfo[]): Promise<Map<number, string | n
   const missing = procs.filter((p) => !cwdCache.has(key(p)));
   if (missing.length) {
     try {
-      const encoded = Buffer.from(CWD_SCRIPT, 'utf16le').toString('base64');
-      const out = await run('powershell.exe', ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-EncodedCommand', encoded], {
-        LSK_PIDS: missing.map((p) => p.pid).join(','),
-      });
+      const out = await powershell(CWD_SCRIPT, { LSK_PIDS: missing.map((p) => p.pid).join(',') });
       const parsed: Record<string, string | null> = JSON.parse(out.trim() || '{}');
       for (const p of missing) cwdCache.set(key(p), parsed[String(p.pid)]?.replace(/\\$/, '') || null);
     } catch {
@@ -99,42 +93,8 @@ export async function getCwds(procs: ProcInfo[]): Promise<Map<number, string | n
   return new Map(procs.map((p) => [p.pid, cwdCache.get(key(p)) ?? null]));
 }
 
-/** Si PowerShell o netstat se cuelgan (p. ej. WMI dañado), se cortan aquí para que la búsqueda no quede esperando para siempre. */
-const RUN_TIMEOUT = 20_000;
-
-function run(file: string, args: string[], env?: Record<string, string>): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const options = { windowsHide: true, timeout: RUN_TIMEOUT, maxBuffer: 64 * 1024 * 1024, env: env ? { ...process.env, ...env } : process.env };
-    execFile(file, args, options, (err, stdout) => {
-      if (!err) return resolve(stdout);
-      // El mensaje original trae el comando completo (con kilobytes de base64): al usuario solo le sirve esto.
-      const name = path.basename(file, '.exe');
-      reject(new Error(err.killed ? `${name} tardó demasiado en responder.` : `${name} falló (código ${err.code ?? '?'}).`));
-    });
-  });
-}
-
-/** netstat es rápido; su columna de estado viene traducida, así que "en escucha" se detecta por la dirección remota con puerto 0. */
-export async function listListeners(): Promise<Listener[]> {
-  const [v4, v6] = await Promise.all([run('netstat', ['-ano', '-p', 'TCP']), run('netstat', ['-ano', '-p', 'TCPv6'])]);
-  const listeners: Listener[] = [];
-  for (const line of (v4 + v6).split(/\r?\n/)) {
-    const parts = line.trim().split(/\s+/);
-    if (parts.length < 5 || !parts[0].toUpperCase().startsWith('TCP')) continue;
-    const [, local, remote, , pidStr] = parts;
-    if (!/:0$/.test(remote)) continue;
-    const sep = local.lastIndexOf(':');
-    const port = Number(local.slice(sep + 1));
-    const pid = Number(pidStr);
-    if (!Number.isInteger(port) || !Number.isInteger(pid)) continue;
-    listeners.push({ pid, port, address: local.slice(0, sep) });
-  }
-  return listeners;
-}
-
 export async function listProcesses(): Promise<Map<number, ProcInfo>> {
-  const encoded = Buffer.from(PS_SCRIPT, 'utf16le').toString('base64');
-  const out = await run('powershell.exe', ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-EncodedCommand', encoded]);
+  const out = await powershell(PS_SCRIPT);
   const raw = JSON.parse(out.trim() || '[]');
   const list: any[] = Array.isArray(raw) ? raw : [raw];
   const map = new Map<number, ProcInfo>();
@@ -267,6 +227,9 @@ function processTree(root: ProcInfo, procs: Map<number, ProcInfo>): ProcInfo[] {
   return tree;
 }
 
+/** Windows a veces reporta mal la tabla de conexiones: solo se muestran puertos que de verdad aceptan conexiones. */
+const confirmer = new ListenerConfirmer();
+
 const cpuSamples = new Map<string, { cpu: number; at: number }>();
 const cores = os.availableParallelism();
 
@@ -284,9 +247,17 @@ function cpuPercent(proc: ProcInfo, cpuTime: number, now: number): number | null
 export async function scan(): Promise<{ result: ScanResult; procs: Map<number, ProcInfo> }> {
   const [listeners, procs] = await Promise.all([listListeners(), listProcesses()]);
   const now = Date.now();
+  const watched = (l: Listener) => {
+    const name = procs.get(l.pid)?.name ?? '';
+    return l.port >= 1024 && l.pid > 4 && (DEV_PROCESSES.has(name) || DOCKER_PROCESSES.has(name));
+  };
+  const dev = listeners.filter((l) => watched(l) && !DOCKER_PROCESSES.has(procs.get(l.pid)!.name));
+  // Docker no se prueba: Docker mismo dice qué publica, y probar sus puertos llenaría de avisos el log de una base de datos.
+  const dockerListeners = listeners.filter((l) => watched(l) && DOCKER_PROCESSES.has(procs.get(l.pid)!.name));
+  const confirmed = await confirmer.confirm(dev, (pid) => `${pid}:${procs.get(pid)?.started}`);
+
   const byPid = new Map<number, Listener[]>();
-  for (const l of listeners) {
-    if (l.port < 1024 || l.pid <= 4) continue;
+  for (const l of [...confirmed, ...dockerListeners]) {
     const arr = byPid.get(l.pid) ?? [];
     arr.push(l);
     byPid.set(l.pid, arr);
